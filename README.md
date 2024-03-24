@@ -1,9 +1,4 @@
----
-title: "disfold: Analysis and Prediction of Disordered Regions in Proteins"
-output:
-  html_document: default
-  pdf_document: default
----
+## disfold: Analysis and Prediction of Disordered Regions in Proteins
 
 ## Overview
 `disfold` is an R package designed for the analysis of disordered (unstructured) regions in proteins. It provides tools to annotate and predict these regions by leveraging various datasets, including those from DisProt. The package uniquely integrates protein structure prediction confidence values, hypothesizing that unstructured regions correlate with lower protein folding confidence scores.
