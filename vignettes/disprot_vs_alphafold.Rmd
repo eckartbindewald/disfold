@@ -3,7 +3,6 @@ title: "Predicting Disordered Regions using Folding Confidence Values"
 author: "Course BIFX553-Spring2024"
 output: rmarkdown::html_vignette
 vignette: >
-  
   %\VignetteIndexEntry{disprot_vs_alphafold}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
