@@ -8,6 +8,19 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+## Synopsis
+
+This R package is focused on the analysis of disordered regions in proteins. In this R-markdown file we want to determine to what extent per-residue structure prediction confidence values from AlphaFold are associated with the two
+classes of structured versus disordered regions. 
+
+The underlying dataset contains annotations of disordered regions in terms of Uniprot protein accession numbers. It was downloaded from disprot (<https://disprot.org>) [1]. 
+
+This markdown file is just a "writing prompt" in the sense that it helps to get some initial data loaded combined with some basic visualization. But much more could be done!
+
+[1] DisProt in 2024: improving function annotation of intrinsically disordered proteins
+Aspromonte MC, Nugnes MV, Quaglia F, Bouharoua A, DisProt Consortium, Tosatto SCE and Piovesan D (2023) Nucleic Acids Research, Database Issue
+
+
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -23,9 +36,12 @@ library(bio3d)
 library(ggplot2)
 library(here)
 data(disprot23)
+# Parameters
 PROJECT_ROOT=here()
 scratchdir=file.path(PROJECT_ROOT, 'data-raw/afdb')
 URL_BASE = "https://alphafold.ebi.ac.uk/files/"
+PROTEIN_DOWNLOAD_LIMIT = 100 # initial limit before "production" runs
+# Create scratch directory for protein structures that are downloaded
 dir.create(scratchdir, recursive = TRUE) # create scratch directory
 ```
 
@@ -45,12 +61,12 @@ disprot23 %>% head() %>% kable()
 
 ```{r}
 accessions = sort(unique(disprot23$acc))
-accessions = head(accessions, 100)
+accessions = head(accessions, PROTEIN_DOWNLOAD_LIMIT)
 ```
 
 The Disprot dataset (2023-12) consists of `r nrow(disprot23)` annotated regions corresponding to `r length(accessions)` unique UniProt ids.
 
-# Loop over protein chains
+# Downloading And Analyzing Predicted Structures
 
 ```{r}
 # typical URL for accession P00520: https://alphafold.ebi.ac.uk/files/AF-P00520-F1-model_v4.cif
@@ -100,21 +116,10 @@ for (acc in accessions) {
 
 ```
 
-## Visualizing Results
+## Structure Prediction Confidence vs Experimental Evidence of Protein Structure
 
 ```{r}
-ca_atoms_all %>% ggplot(aes(x=factor(structured), y=b)) + geom_violin()
+ca_atoms_all %>% ggplot(aes(x=factor(structured, labels=c("Unstructured", "Structured")), y=b)) + geom_violin()  + xlab("Local Protein Structure") + ylab("AlphaFold Confidence Value")
 ```
 
-## Correlation
 
-The correlation between The AF2 confidence and the disordered region annotation is `r round(cor(ca_atoms_all[['structured']], ca_atoms_all[['b']]), 4)` or $r^2=$ `r r=cor(ca_atoms_all[['structured']], ca_atoms_all[['b']]); round(r*r,4)`
-
-
-## Prediction based on Simple Threshold
-
-```{r}
-struct_threshold=75
-ca_atoms_all[['predstruct']] = as.numeric(ca_atoms_all[['b']] > struct_threshold)
-table(ca_atoms_all[['predstruct']], ca_atoms_all[['structured']])
-```
