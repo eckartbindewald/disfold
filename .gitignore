@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+.Rproj.user
+*~
+.Rdata
+.httr-oauth
+.DS_Store
+*.pdb
+*.pdb.gz
+*.cif
+*.cif.gz
+

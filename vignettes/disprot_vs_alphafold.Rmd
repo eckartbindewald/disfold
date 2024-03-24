@@ -1,0 +1,118 @@
+---
+title: "Predicting Disordered Regions using Folding Confidence Values"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{disprot_vs_alphafold}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(disfold)
+library(dplyr)
+library(knitr)
+library(bio3d)
+library(ggplot2)
+library(here)
+data(disprot23)
+PROJECT_ROOT=here()
+scratchdir=file.path(PROJECT_ROOT, 'data-raw/afdb')
+URL_BASE = "https://alphafold.ebi.ac.uk/files/"
+dir.create(scratchdir, recursive = TRUE) # create scratch directory
+```
+
+## Technicalities
+
+The value of the `here()` function is: `r here()`. 
+Created scratch directory for download of protein structure data files: `r scratchdir`.
+
+## Overview
+
+```{r}
+disprot23 %>% head() %>% kable()
+```
+
+
+## Accession Codes
+
+```{r}
+accessions = sort(unique(disprot23$acc))
+accessions = head(accessions, 100)
+```
+
+The Disprot dataset (2023-12) consists of `r nrow(disprot23)` annotated regions corresponding to `r length(accessions)` unique UniProt ids.
+
+# Loop over protein chains
+
+```{r}
+# typical URL for accession P00520: https://alphafold.ebi.ac.uk/files/AF-P00520-F1-model_v4.cif
+
+
+regions_to_residues <- function(starts, ends) {
+    stopifnot(length(starts) == length(ends))
+    n = length(starts)
+    result = c()
+    for (i in 1:n) {
+        result = c(result, starts[i]:ends[i])
+    }
+    result
+}
+
+
+# accessions = c('P10902')
+ca_atoms_all = NULL
+    
+for (acc in accessions) {
+    fname = paste0("AF-",acc, "-F1-model_v4.pdb")
+    url = paste0(URL_BASE, fname)
+    destfile = file.path(scratchdir, fname)
+    if (! file.exists(destfile)) {
+        cat("Downloading", acc, 'from', url, '...')
+        try(download.file(url, destfile), silent=TRUE)
+    }
+    if (!file.exists(destfile)) {
+        next
+    }
+    pdb <- read.pdb(destfile) # alternative: read.cif
+    ca_atoms <- pdb$atom[pdb$atom$elety == "CA", ]
+    # print(head(ca_atoms))
+    disregions = disprot23[disprot23$acc==acc, ]
+    # print(disregions)
+    disresidues = regions_to_residues(disregions$start, disregions$end)
+    dis_confidences = ca_atoms[disresidues, 'b']
+    ca_atoms[['structured']] = 1
+    ca_atoms[disresidues, 'structured'] = 0
+    ca_atoms[['acc']] = acc
+    if (is.null(ca_atoms_all)) {
+        ca_atoms_all = ca_atoms
+    } else {
+     ca_atoms_all = rbind(ca_atoms_all, ca_atoms)
+    }
+}
+
+```
+
+## Visualizing Results
+
+```{r}
+ca_atoms_all %>% ggplot(aes(x=factor(structured), y=b)) + geom_violin()
+```
+## Correlation
+
+The correlation between The AF2 confidence and the disordered region annotation is `r round(cor(ca_atoms_all[['structured']], ca_atoms_all[['b']]), 4)` or $r^2=$ `r r=cor(ca_atoms_all[['structured']], ca_atoms_all[['b']]); round(r*r,4)`
+
+
+## Prediction based on Simple Threshold
+
+```{r}
+struct_threshold=75
+ca_atoms_all[['predstruct']] = as.numeric(ca_atoms_all[['b']] > struct_threshold)
+table(ca_atoms_all[['predstruct']], ca_atoms_all[['structured']])
+```
