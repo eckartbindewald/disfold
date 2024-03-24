@@ -53,7 +53,7 @@ Created scratch directory for download of protein structure data files: `r scrat
 ## Overview
 
 ```{r}
-disprot23 %>% head() %>% kable()
+disprot23 %>% head(n=20) %>% kable()
 ```
 
 
@@ -99,6 +99,10 @@ for (acc in accessions) {
     }
     pdb <- read.pdb(destfile) # alternative: read.cif
     ca_atoms <- pdb$atom[pdb$atom$elety == "CA", ]
+    if (!is.data.frame(ca_atoms) || nrow(ca_atoms) < 10) {
+        cat("Skipping", acc, 'due to insufficient number of C-alpha atom coordinates\n')
+        next
+    }
     # print(head(ca_atoms))
     disregions = disprot23[disprot23$acc==acc, ]
     # print(disregions)
@@ -119,7 +123,7 @@ for (acc in accessions) {
 ## Structure Prediction Confidence vs Experimental Evidence of Protein Structure
 
 ```{r}
-ca_atoms_all %>% ggplot(aes(x=factor(structured, labels=c("Unstructured", "Structured")), y=b)) + geom_violin()  + xlab("Local Protein Structure") + ylab("AlphaFold Confidence Value")
+ca_atoms_all %>% ggplot(aes(x=factor(structured, labels=c("Disordered", "Structured")), y=b)) + geom_violin()  + xlab("Local Protein Structure") + ylab("AlphaFold Confidence Value")
 ```
 
 
