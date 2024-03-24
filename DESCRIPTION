@@ -18,8 +18,7 @@ Depends:
     R (>= 2.10),
     dplyr,
     here,
-    bio3d
-Suggests: 
+    bio3d,
     ggplot2,
     knitr,
     rmarkdown
