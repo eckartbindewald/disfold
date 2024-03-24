@@ -1,9 +1,18 @@
-## disfold: Analysis and Prediction of Disordered Regions in Proteins
+## Analysis and Prediction of Disordered Regions in Proteins
 
 ## Overview
-`disfold` is an R package designed for the analysis of disordered (unstructured) regions in proteins. It provides tools to annotate and predict these regions by leveraging various datasets, including those from DisProt. The package uniquely integrates protein structure prediction confidence values, hypothesizing that unstructured regions correlate with lower protein folding confidence scores.
+`disfold` is an R package designed for the analysis of disordered (unstructured) regions in proteins. It provides tools to annotate and predict these regions by leveraging various datasets, including those from DisProt. The package integrates protein structure prediction confidence values, hypothesizing that unstructured regions correlate with lower protein folding confidence scores.
+
+The underlying used data set contains annotations of disordered regions in terms of Uniprot protein accession numbers. It was downloaded from disprot (<https://disprot.org>) [1]. 
+
+The included R-markdown file is just a "writing prompt" in the sense that it helps to get some initial data loaded combined with some basic visualization. But much more could be done!
+
+[1] DisProt in 2024: improving function annotation of intrinsically disordered proteins
+Aspromonte MC, Nugnes MV, Quaglia F, Bouharoua A, DisProt Consortium, Tosatto SCE and Piovesan D (2023) Nucleic Acids Research, Database Issue
+
 
 ## Installation
+
 You can install the development version of `disfold` from [GitHub](https://github.com/yourusername/disfold) with:
 
 ```r
@@ -14,20 +23,25 @@ Replace yourusername with your actual GitHub username.
 
 ## Usage
 
-To get started with disfold, load the package as follows:
+A good way to get started is to focus on the vignette located under `vignettes/disprot_vs_alphafold.Rmd`. 
+One can view the vignette as follows:
+
+```
+browseVignettes(package='disfold')
+```
+
+To keep working on this vignette, one should open the project in RStudio and edit and compile the vignette file from there. Other than the vignette and the dataset the R package does currently not contain much!
 
 ```
 library(disfold)
 data(disprot23)
+# ... your analysis
 ```
-
-One way to use this package is to close this repository and open, compile and possibly modify the vignette (`vignettes/disprot_vs_alphafold.Rmd`)
 
 ## Features
 
 Analysis of disordered regions in protein sequences.
 Integration with data from the Alphafold Database for structure prediction.
-Methods to correlate disordered regions with protein folding confidence scores.
 
 ## Dependencies
 
@@ -48,7 +62,7 @@ knitr and rmarkdown for reproducible research with R Markdown support.
 
 ## Contributions
 
-Contributions to disfold are welcome! Feel free to open an issue or submit a pull request on our GitHub repository.
+This repository is currently used for a course project.
 
 ## Contact
 
