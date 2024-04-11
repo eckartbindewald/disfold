@@ -41,6 +41,8 @@ PROJECT_ROOT=here()
 scratchdir=file.path(PROJECT_ROOT, 'data-raw/afdb')
 URL_BASE = "https://alphafold.ebi.ac.uk/files/"
 PROTEIN_DOWNLOAD_LIMIT = 100 # initial limit before "production" runs
+cat("Downloading up to ", PROTEIN_DOWNLOAD_LIMIT, 'protein structures. If that number if < 1000, it is more of a "demo" and not a production run, consider increasing the number for production results!\n")
+
 # Create scratch directory for protein structures that are downloaded
 dir.create(scratchdir, recursive = TRUE) # create scratch directory
 ```
@@ -70,6 +72,7 @@ The Disprot dataset (2023-12) consists of `r nrow(disprot23)` annotated regions 
 
 ```{r}
 # typical URL for accession P00520: https://alphafold.ebi.ac.uk/files/AF-P00520-F1-model_v4.cif
+# https://alphafold.ebi.ac.uk/files/AF-P04123-F1-model_v4.cif
 
 
 regions_to_residues <- function(starts, ends) {
