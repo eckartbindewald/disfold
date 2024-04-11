@@ -1,0 +1,96 @@
+---
+title: "Sequence Motifs for Disprot"
+author: "Eckart Bindewald"
+date: "2024-04-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(disfold)
+data(disprot23)
+library(dplyr)
+library(knitr)
+```
+
+```{r}
+disprot23 %>% head(n=30) %>% kable()
+```
+
+```{r}
+sanitize_dir_name <- function(name) {
+  # Replace forward and backward slashes with underscore
+  name <- gsub("/", "_", name)
+  name <- gsub("\\s+", "_", name)
+  name <- gsub("\\\\", "_", name)
+  
+  # Replace or remove other potentially problematic characters
+  # Add or adjust according to your requirements
+  name <- gsub("[:*?\"<>|]", "", name)
+
+  # Trim leading and trailing whitespaces
+  name <- trimws(name)
+
+  return(name)
+}
+```
+
+
+## Group Sequences
+
+```{r}
+
+
+grouped_df <- disprot23 %>%
+  group_by(term_name) %>%
+  summarise(fasta_sequence = paste0(">", row_number(), "\n", region_sequence, collapse="\n"), .groups='keep')
+
+```
+
+## Writing to Files
+
+```{r}
+mmseqs_mode=FALSE # cluster sequences with mmseqs?
+target_dir = 'disprot_sequences'
+if (!file.exists(target_dir)) {
+ cat("Creating directory", target_dir)
+ dir.create(target_dir,showWarnings=FALSE, recursive = TRUE)
+}
+motif_min=5
+# Loop through each unique term_name
+uterms = unique(grouped_df$term_name)
+min_seq_identity = 0.4 # CHANGE_ME :-) 
+min_coverage = 0.6 # CHANGE_ME :-) 
+for (i in 1:length(uterms)) { # length(uterms)) {
+  term = uterms[i]
+  # Select the sequences for this term
+  # 'filter' is also defined in a library other than dplyr, using dplyr::filter to make sure we get the correct version!
+  # 'pull' in dplyr is not so often used - unlike vast majority of dplyr commands its result is not a dataframe
+  # but a single column vector
+  sequences <- grouped_df %>%
+    dplyr::filter(term_name == term) %>%
+    pull(fasta_sequence)
+  print(sequences)
+  # why is the following not working?
+  # if (length(sequences) < motif_min) {
+  #     next
+  # }
+  # Create a file name
+  clean_term <- sanitize_dir_name(term)
+  file_name <- file.path(target_dir, paste0(clean_term, ".fasta"))
+  cat("Writing to filename", file_name, '\n')
+  # Write the sequences to the file
+  writeLines(sequences, file_name)
+  if (mmseqs_mode) {
+      result_dir = paste0(clean_term, '__mmseqs_results')
+      tmp_dir = paste0(clean_term,'__mmseqs_tmp')
+      dir.create(result_dir, showWarnings = FALSE, recursive=TRUE)
+      dir.create(tmp_dir, showWarnings = FALSE, recursive=TRUE)
+      command = paste("mmseqs easy-cluster", file_name, result_dir,
+            tmp_dir, "--min-seq-id", min_seq_identity,"-c", min_coverage)
+      cat(command, '\n')
+      system(command)
+  }
+}
+
+```
