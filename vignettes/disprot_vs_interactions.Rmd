@@ -1,0 +1,315 @@
+---
+title: "Predicting Disordered Regions using Folding Confidence Values"
+author: "Course BIFX553-Spring2024"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{disprot_vs_alphafold}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Synopsis
+
+This R package is focused on the analysis of disordered regions in proteins. In this R-markdown file we want to determine to what extent per-residue structure prediction confidence values from AlphaFold are associated with the two
+classes of structured versus disordered regions. 
+
+The underlying dataset contains annotations of disordered regions in terms of Uniprot protein accession numbers. It was downloaded from disprot (<https://disprot.org>) [1]. 
+
+This markdown file is just a "writing prompt" in the sense that it helps to get some initial data loaded combined with some basic visualization. But much more could be done!
+
+[1] DisProt in 2024: improving function annotation of intrinsically disordered proteins
+Aspromonte MC, Nugnes MV, Quaglia F, Bouharoua A, DisProt Consortium, Tosatto SCE and Piovesan D (2023) Nucleic Acids Research, Database Issue
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(disfold)
+library(dplyr)
+library(knitr)
+library(bio3d)
+library(ggplot2)
+library(here)
+library(httr)
+data(disprot23)
+# Parameters
+PROJECT_ROOT=here()
+scratchdir=file.path(PROJECT_ROOT, 'data-raw/afdb')
+URL_BASE = "https://alphafold.ebi.ac.uk/files/"
+PROTEIN_DOWNLOAD_LIMIT = 500 # initial limit before "production" runs
+INTERACT_URL = "https://string-db.org/api"
+# Create scratch directory for protein structures that are downloaded
+dir.create(scratchdir, recursive = TRUE) # create scratch directory
+```
+
+## Technicalities
+
+The value of the `here()` function is: `r here()`. 
+Created scratch directory for download of protein structure data files: `r scratchdir`.
+
+## Overview
+
+```{r}
+disprot23 %>% head(n=10) %>% kable()
+```
+
+
+## Accession Codes
+
+```{r}
+accessions = sort(unique(disprot23$acc))
+accessions = head(accessions, PROTEIN_DOWNLOAD_LIMIT)
+```
+
+The Disprot dataset (2023-12) consists of `r nrow(disprot23)` annotated regions corresponding to `r length(accessions)` unique UniProt ids.
+
+
+## Protein-Protein Interaction Database
+
+```{r}
+
+ii_codes = list()
+
+
+for (accession in accessions) {
+    # example for obtaining STRING id for gene name
+    # https://string-db.org/api/tsv/get_string_ids?identifiers=p53%0dcdk2&species=9606
+    url <- paste(INTERACT_URL,"tsv", "get_string_ids?identifiers=",sep="/")
+    url = paste0(url, accession)
+    data <- read.csv(url, sep='\t')
+    if (nrow(data) == 1) {
+     cat("Result for accession", accession, ":\n")
+     print(data)
+     ii_codes[[accession]] = data[1, 'stringId']
+    }
+}
+```
+
+## Learned Interaction Accession Numbers
+
+```{r}
+print(ii_codes)
+```
+
+## Update Accession codes
+
+```{r}
+
+accessions = names(ii_codes)
+interactions = NULL
+for (accession in accessions) {
+    # example for obtaining STRING id for gene name
+    # https://string-db.org/api/tsv/interaction_partners?identifiers=TP53%0dCDK2&limit=10
+
+    url <- paste(INTERACT_URL,"tsv", "interaction_partners?identifiers=",sep="/")
+    url = paste0(url, accession)
+    data <- read.csv(url, sep='\t')
+    if (nrow(data) >= 1) {
+     cat("Result for accession", accession, ":\n")
+     # print(data)
+     # data %>% kable()
+     print(data)
+     if (is.null(interactions)) {
+      interactions = data
+     } else {
+         interactions = rbind(interactions, data)
+     }
+    }
+}
+```
+
+## Overall Interactions:
+
+```{r}
+ii_ids = sort(unique(c(interactions[['stringId_A']], interactions[['stringId_A']])))
+print(interactions)
+```
+
+
+# id-mapping to uniprot
+
+```{r}
+# Define the request parameters
+#url <- "https://www.uniprot.org/idmapping/"
+# body <- list(
+#   ids = paste(ii_ids, sep=','),
+#   from = "STRING",
+#   to = "UniProtKB"
+# )
+
+extractUniProtIDs <- function(results) {
+  uniProtIDs <- vector("list", length(results))
+  alldb = c()
+  for (i in seq_along(results)) {
+    crossRefs <- results[[i]]$to$uniProtKBCrossReferences
+    stringID <- NULL
+    uniProtID <- NULL
+    alldb2 = list()
+    for (crossRef in crossRefs) {
+        # print("found crossref")
+        # print(crossRef)
+        alldb = unique(append(alldb, crossRef$database))
+        alldb2[[crossRef$database]] = crossRef$id
+        # cat("Databases so far:")
+        # print(alldb2)
+      if (crossRef$database == "STRING") {
+        stringID <- crossRef$id
+      }
+      if (crossRef$database %in% c("AlphaFoldDB", "UniProtKB")) {
+        uniProtID <- crossRef$id
+      }
+    }
+    # cat("Cross-referenced Databases so for this entry:")
+    # print(alldb2)
+    uniProtIDs[[i]] <- c(stringID, uniProtID)
+  }
+  # cat("for table:\n")
+  # print(uniProtIDs)
+  # Convert the list to a data frame
+  do.call(rbind, lapply(uniProtIDs, function(x) data.frame(STRING_ID = x[1], UniProt_ID = x[2])))
+}
+
+getResultsWhenReady <- function(jobId) {
+  pollingInterval = 5
+  nTries = 100
+  for (i in 1:nTries) {
+    url <- paste("https://rest.uniprot.org/idmapping/status/", jobId, sep = "")
+    # cat("trying", url, "...\n")
+    r <- GET(url = url, accept_json())
+    # print("response from is-job-ready:")
+    # print(r)
+    status <- content(r, as = "parsed")
+    # cat("Status:\n")
+    # print(status)
+    if (!is.null(status[["results"]]) || !is.null(status[["failedIds"]])) {
+      dataFrame <- extractUniProtIDs(status$results)
+      return(dataFrame)
+    }
+    if (!is.null(status[["messages"]])) {
+      # print(status[["messages"]])
+      return (FALSE)
+    }
+    Sys.sleep(pollingInterval)
+  }
+  return(FALSE)
+}
+
+getResultsURL <- function(redirectURL) {
+  if (grepl("/idmapping/results/", redirectURL, fixed = TRUE)) {
+    url <- gsub("/idmapping/results/", "/idmapping/stream/", redirectURL)
+  } else {
+    url <- gsub("/results/", "/results/stream/", redirectURL)
+  }
+}
+
+tblall = NULL
+for (ii_id in ii_ids) {
+    
+files = list(
+  ids = ii_id, # paste(ii_ids,sep=','),
+  from = "STRING",
+  to = "UniProtKB"
+)
+response <- POST(url = "https://rest.uniprot.org/idmapping/run", body = files, encode = "multipart", accept_json())
+submission <- content(response, as = "parsed")
+
+# resultsTable = NULL
+# print(submission)
+
+tbl = getResultsWhenReady(submission[["jobId"]])
+tblall = rbind(tblall, tbl)
+}
+tblall %>% kable()
+print(dim(tblall))
+stopifnot(is.data.frame(tbl))
+# 
+#   url <- paste("https://rest.uniprot.org/idmapping/details/", submission[["jobId"]], sep = "")
+#   response <- GET(url = url, accept_json())
+#   details <- content(response, as = "parsed")
+# 
+#   # Ensure the function returns the URL
+#   url <- getResultsURL(details[["redirectURL"]])
+#   
+#   url <- paste(url, "?format=tsv", sep = "")
+#   response <- GET(url = url, accept_json())
+# 
+#   # Check the content type and parse accordingly
+#   if (http_type(response) == "application/json") {
+#     # Parsing JSON content
+#     resultsTable <- content(response, "parsed")
+#   } else {
+#     # Parsing TSV content
+#     resultsTable <- read.table(text = content(response, "text"), sep = "\t", header = TRUE)
+#   }
+#   resultsTable %>% kable()
+# }
+
+
+```
+
+## Translate Back
+
+```{r}
+interactions[['AFDB1']] = ""
+interactions[['AFDB2']] = ""
+dall = list()
+cat("Converting translation table to dictionary:\n")
+print(tblall)
+for (i in 1:nrow(tblall)) {
+    cat("Setting", i, tblall[i, 'STRING_ID'], tblall[i, 'UniProt_ID'], '\n')
+    dall[[ tblall[i, 'STRING_ID'] ]] = tblall[i, 'UniProt_ID']
+}
+print("Dall datastructure")
+print(dall)
+
+stopifnot(length(dall)>0)
+for (i in 1:nrow(interactions)) {
+    stringid1 = interactions[i,'stringId_A']
+    stringid2 = interactions[i,'stringId_B']
+    stopifnot(nchar(stringid1)>0)
+    stopifnot(nchar(stringid2)>0)
+    if (stringid1 %in% names(dall)) {
+        if (stringid2 %in% names(dall)) {
+            cat("Seting again:", i, dall[[ stringid1 ]], '\n')
+            cat("Seting again:", i, dall[[ stringid2 ]], '\n')
+            interactions[i, 'AFDB1'] = dall[[ stringid1 ]]
+            interactions[i, 'AFDB2'] = dall[[ stringid2 ]]
+        } else {
+            cat("Somehow could not find in tblall!", stringid2, '\n')
+        }
+    } else {
+        cat("Somehow could not find in tblall...", stringid1, '\n')
+    }
+}
+```
+
+## Finally, Better Table
+
+```{r}
+interactions %>% kable()
+```
+
+## More stuff, not sure if needed
+
+```{r}
+# Check if the request was successful
+if (http_type(response) == "application/json") {
+  # If the response is JSON, you can parse it
+  result <- content(response, "parsed")
+  print(result)
+} else {
+  # If the response is not JSON, you can retrieve the content as text
+  content <- read.csv(text=content(response, "text"), sep='\t')
+  print(content)
+  content %>% kable()
+}
+```
+
+Am tired of failed ID mapping for with slow service
+Better use direct mapping file:
+`https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/idmapping.dat.gz`
